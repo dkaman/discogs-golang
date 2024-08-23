@@ -157,6 +157,12 @@ func main() {
 		fmt.Printf("release %s\n", l.BasicInfo.Title)
 	}
 
+	g, err := c.Collection.GetFolderByRelease(ctx, "dallaskaman", 12245977)
+
+	for _, gg := range g {
+		fmt.Printf("release - by folder: %s\n", gg.BasicInfo.Title)
+	}
+
 	// req, err := c.NewRequest("GET", "artists/1/releases?page=1&per_page=1", nil)
 	// if err != nil {
 	// 	fmt.Printf("error creating request: %s", err)

@@ -65,6 +65,20 @@ type Release struct {
 	BasicInfo  releaseBasicInfo `json:"basic_information"`
 }
 
+type Field struct {
+	ID       int      `json:"id"`
+	Name     string   `json:"name"`
+	Options  []string `json:"options"`
+	Position int      `json:"position"`
+	Type     string   `json:"type"`
+	Public   bool     `json:"public"`
+	Lines    int      `json:"lines"`
+}
+
+type releaseResponse struct {
+	Releases []Release `json:"releases"`
+}
+
 func (f *Folder) URL() (*url.URL, error) {
 	return url.Parse(f.ResourceURL)
 }
@@ -73,7 +87,7 @@ type GetFoldersResponse struct {
 	Folders []Folder `json:"folders"`
 }
 
-func (s *CollectionService) GetFolders(ctx context.Context, username string) ([]Folder, error) {
+func (s *CollectionService) GetFolders(ctx context.Context, username string) (folders []Folder, err error) {
 	u := fmt.Sprintf("users/%s/collection/folders", username)
 
 	req, err := s.client.NewRequest("GET", u, nil)
@@ -87,17 +101,14 @@ func (s *CollectionService) GetFolders(ctx context.Context, username string) ([]
 		return nil, err
 	}
 
-	return r.Folders, nil
+	folders = r.Folders
+
+	return
 }
 
-type GetReleaseByFolderResponse struct {
-	// Paginator paginator `json:"pagination"`
-	Releases []Release `json:"releases"`
-}
+type GetReleaseByFolderResponse releaseResponse
 
-func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username string, folderID int) ([]Release, error) {
-	var releases []Release
-
+func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username string, folderID int) (releases []Release, err error) {
 	u := fmt.Sprintf("users/%s/collection/folders/%d/releases", username, folderID)
 
 	req, err := s.client.NewRequest("GET", u, nil)
@@ -116,9 +127,8 @@ func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username st
 	}
 	releases = append(releases, first.Releases...)
 
-	var next *GetReleaseByFolderResponse
 	for {
-		next, err = pager.Next(ctx)
+		next, err := pager.Next(ctx)
 		if errors.Is(err, ErrPageDone) {
 			break
 		}
@@ -128,5 +138,64 @@ func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username st
 		releases = append(releases, next.Releases...)
 	}
 
-	return releases, nil
+	return
+}
+
+type GetFolderByReleaseResponse releaseResponse
+
+func (s *CollectionService) GetFolderByRelease(ctx context.Context, username string, releaseID int) (releases []Release, err error) {
+	u := fmt.Sprintf("users/%s/collection/releases/%d", username, releaseID)
+
+	req, err := s.client.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	first, pager, err := NewPager[GetFolderByReleaseResponse](resp, s.client)
+	if err != nil {
+		return nil, err
+	}
+	releases = append(releases, first.Releases...)
+
+	for {
+		next, err := pager.Next(ctx)
+		if errors.Is(err, ErrPageDone) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		releases = append(releases, next.Releases...)
+	}
+
+	return
+}
+
+type ListCustomFieldsResponse struct {
+	Fields []Field `json:"fields"`
+}
+
+func (s *CollectionService) ListCustomFields(ctx context.Context, username string) (fields []Field, err error) {
+	u := fmt.Sprintf("users/%s/collection/fields", username)
+
+	req, err := s.client.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var r ListCustomFieldsResponse
+	_, err = s.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	fields = r.Fields
+
+	return
+
 }

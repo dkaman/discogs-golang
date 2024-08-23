@@ -24,6 +24,15 @@ func (p *Pager[T]) initialize(r *Response) {
 	p.pageInfo = r.Paginator
 }
 
+func readBody[T any](resp *Response, v *T) error {
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	resp.Body = io.NopCloser(bytes.NewBuffer(data))
+	return json.Unmarshal(data, v)
+}
+
 func NewPager[T any](r *Response, client *Client) (*T, *Pager[T], error) {
 	if client == nil {
 		return nil, nil, ErrNilClient
@@ -36,12 +45,7 @@ func NewPager[T any](r *Response, client *Client) (*T, *Pager[T], error) {
 	pager.initialize(r)
 
 	var respBody T
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, nil, err
-	}
-	r.Body = io.NopCloser(bytes.NewBuffer(data))
-	err = json.Unmarshal(data, &respBody)
+	err := readBody(r, &respBody)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -66,19 +70,13 @@ func (p *Pager[T]) Next(ctx context.Context) (*T, error) {
 		return nil, err
 	}
 
-	var apiResponse *T
-
 	resp, err := p.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	err = json.Unmarshal(data, &apiResponse)
+	var apiResponse *T
+	err = readBody(resp, &apiResponse)
 	if err != nil {
 		return nil, err
 	}

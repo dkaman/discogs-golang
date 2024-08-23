@@ -1,11 +1,11 @@
 package main
 
 import (
-	"io"
-	"encoding/json"
 	"bytes"
-	"strconv"
+	"encoding/json"
+	"io"
 	"net/http"
+	"strconv"
 )
 
 type Response struct {

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"errors"
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 )
@@ -92,7 +92,7 @@ func (s *CollectionService) GetFolders(ctx context.Context, username string) ([]
 
 type GetReleaseByFolderResponse struct {
 	// Paginator paginator `json:"pagination"`
-	Releases  []Release `json:"releases"`
+	Releases []Release `json:"releases"`
 }
 
 func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username string, folderID int) ([]Release, error) {
@@ -109,7 +109,6 @@ func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username st
 	if err != nil {
 		return nil, err
 	}
-
 
 	first, pager, err := NewPager[GetReleaseByFolderResponse](resp, s.client)
 	if err != nil {

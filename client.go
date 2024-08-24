@@ -147,20 +147,48 @@ func main() {
 		return
 	}
 
-	f, err := c.Collection.GetReleasesByFolder(ctx, "dallaskaman", 0)
+	// f, err := c.Collection.GetReleasesByFolder(ctx, "dallaskaman", 0)
+	// if err != nil {
+	// 	fmt.Printf("error getting folders: %s", err)
+	// 	return
+	// }
+
+	// for _, l := range f {
+	// 	fmt.Printf("release %s\n", l.BasicInfo.Title)
+	// }
+
+	// g, err := c.Collection.GetFolderByRelease(ctx, "dallaskaman", 12245977)
+
+	// for _, gg := range g {
+	// 	fmt.Printf("release - by folder: %s\n", gg.BasicInfo.Title)
+	// }
+
+	l, err := c.Collection.CreateFolder(ctx, "dallaskaman", "testfolder")
 	if err != nil {
-		fmt.Printf("error getting folders: %s", err)
+		fmt.Printf("error creating folder: %s\n", err)
+
+	}
+
+	fmt.Printf("new folder: %v\n", l)
+
+	z, err := c.Collection.GetFolder(ctx, "dallaskaman", l.ID)
+	if err != nil {
+		fmt.Printf("get folder err: %s\n", err)
 		return
 	}
 
-	for _, l := range f {
-		fmt.Printf("release %s\n", l.BasicInfo.Title)
-	}
+	fmt.Printf("z: %v\n", z)
 
-	g, err := c.Collection.GetFolderByRelease(ctx, "dallaskaman", 12245977)
+	z.Name = "new edited folder name"
 
-	for _, gg := range g {
-		fmt.Printf("release - by folder: %s\n", gg.BasicInfo.Title)
+	m, err := c.Collection.EditFolder(ctx, "dallaskaman", z.ID, *z)
+
+	fmt.Printf("m: %v\n", m)
+
+	err = c.Collection.DeleteFolder(ctx, "dallaskaman", m.ID)
+	if err != nil {
+		fmt.Printf("delete err: %s\n", err)
+		return
 	}
 
 	// req, err := c.NewRequest("GET", "artists/1/releases?page=1&per_page=1", nil)

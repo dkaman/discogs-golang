@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -73,6 +74,12 @@ type Field struct {
 	Type     string   `json:"type"`
 	Public   bool     `json:"public"`
 	Lines    int      `json:"lines"`
+}
+
+type Value struct {
+	Maximum string `json:"maximum"`
+	Median  string `json:"median"`
+	Minimum string `json:"minimum"`
 }
 
 type releaseResponse struct {

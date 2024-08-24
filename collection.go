@@ -94,7 +94,7 @@ type GetFoldersResponse struct {
 	Folders []Folder `json:"folders"`
 }
 
-func (s *CollectionService) GetFolders(ctx context.Context, username string) (folders []Folder, err error) {
+func (s *CollectionService) ListFolders(ctx context.Context, username string) (folders []Folder, err error) {
 	u := fmt.Sprintf("users/%s/collection/folders", username)
 
 	req, err := s.client.NewRequest("GET", u, nil)
@@ -113,10 +113,36 @@ func (s *CollectionService) GetFolders(ctx context.Context, username string) (fo
 	return
 }
 
-type GetReleaseByFolderResponse releaseResponse
+func (s *CollectionService) CreateFolder(ctx context.Context, username string, folderName string) (folder *Folder, err error) {
+	u := fmt.Sprintf("users/%s/collection/folders", username)
 
-func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username string, folderID int) (releases []Release, err error) {
-	u := fmt.Sprintf("users/%s/collection/folders/%d/releases", username, folderID)
+	body := struct {
+		Username string `json:"username"`
+		Name     string `json:"name"`
+	}{
+		Username: username,
+		Name:     folderName,
+	}
+
+	req, err := s.client.NewRequest("POST", u, body)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var f Folder
+	err = json.NewDecoder(resp.Body).Decode(&f)
+	folder = &f
+
+	return
+}
+
+func (s *CollectionService) GetFolder(ctx context.Context, username string, folderID int) (folder *Folder, err error) {
+	u := fmt.Sprintf("users/%s/collection/folders/%d", username, folderID)
 
 	req, err := s.client.NewRequest("GET", u, nil)
 	if err != nil {
@@ -128,21 +154,48 @@ func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username st
 		return nil, err
 	}
 
-	first, pager, err := NewPager[GetReleaseByFolderResponse](resp, s.client)
+	var f Folder
+	err = json.NewDecoder(resp.Body).Decode(&f)
+	folder = &f
+
+	return
+}
+
+func (s *CollectionService) EditFolder(ctx context.Context, username string, folderID int, newFolder Folder) (folder *Folder, err error) {
+	u := fmt.Sprintf("users/%s/collection/folders/%d", username, folderID)
+
+	req, err := s.client.NewRequest("POST", u, newFolder)
 	if err != nil {
 		return nil, err
 	}
-	releases = append(releases, first.Releases...)
 
-	for {
-		next, err := pager.Next(ctx)
-		if errors.Is(err, ErrPageDone) {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		releases = append(releases, next.Releases...)
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var f Folder
+	err = json.NewDecoder(resp.Body).Decode(&f)
+	folder = &f
+
+	return
+}
+
+func (s *CollectionService) DeleteFolder(ctx context.Context, username string, folderID int) (err error) {
+	u := fmt.Sprintf("users/%s/collection/folders/%d", username, folderID)
+
+	req, err := s.client.NewRequest("DELETE", u, nil)
+	if err != nil {
+		return
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return
+	}
+
+	if resp.StatusCode != 204 {
+		err = fmt.Errorf("obtained non-204 on delete: got %d", resp.StatusCode)
 	}
 
 	return
@@ -183,6 +236,56 @@ func (s *CollectionService) GetFolderByRelease(ctx context.Context, username str
 	return
 }
 
+type GetReleaseByFolderResponse releaseResponse
+
+func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username string, folderID int) (releases []Release, err error) {
+	u := fmt.Sprintf("users/%s/collection/folders/%d/releases", username, folderID)
+
+	req, err := s.client.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	first, pager, err := NewPager[GetReleaseByFolderResponse](resp, s.client)
+	if err != nil {
+		return nil, err
+	}
+	releases = append(releases, first.Releases...)
+
+	for {
+		next, err := pager.Next(ctx)
+		if errors.Is(err, ErrPageDone) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		releases = append(releases, next.Releases...)
+	}
+
+	return
+}
+
+func (s *CollectionService) AddReleaseToFolder(ctx context.Context, username string, folderID int, releaseID int) (err error) {
+	_ = fmt.Sprintf("users/%s/collection/folders/%d/releases/%d", username, folderID, releaseID)
+	return
+}
+
+func (s *CollectionService) ChangeRatingOfRelease(ctx context.Context, username string, folderID int, releaseID int, instanceID int, rating int) (err error) {
+	_ = fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d", username, folderID, releaseID, instanceID)
+	return
+}
+
+func (s *CollectionService) RemoveReleaseFromFolder(ctx context.Context, username string, folderID int, releaseID int, instanceID int) (err error) {
+	_ = fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d", username, folderID, releaseID, instanceID)
+	return
+}
+
 type ListCustomFieldsResponse struct {
 	Fields []Field `json:"fields"`
 }
@@ -195,14 +298,27 @@ func (s *CollectionService) ListCustomFields(ctx context.Context, username strin
 		return nil, err
 	}
 
-	var r ListCustomFieldsResponse
-	_, err = s.client.Do(ctx, req)
+	resp, err := s.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
+	var r ListCustomFieldsResponse
+	err = json.NewDecoder(resp.Body).Decode(&r)
+	if err != nil {
+		return nil, err
+	}
 	fields = r.Fields
 
 	return
+}
 
+func (s *CollectionService) EditCustomFields(ctx context.Context, username string, folderID int, releaseID int, instanceID int, fieldID int, value string) (err error) {
+	_ = fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d/fields/%d", username, folderID, releaseID, instanceID, fieldID)
+	return
+}
+
+func (s *CollectionService) GetCollectionValue(ctx context.Context, username string) (value *Value, err error) {
+	_ = fmt.Sprintf("users/%s/collection/value", username)
+	return
 }

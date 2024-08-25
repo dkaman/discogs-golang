@@ -4,64 +4,88 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-)
+	"time"
 
+	"golang.org/x/time/rate"
+)
 
 const (
 	version          = "v0.0.1"
-	defaultBaseURL   = "https://api.disocgs.com"
+	defaultBaseURL   = "https://api.discogs.com"
 	defaultUserAgent = "discogs-golang" + "/" + version
 )
 
 type Client struct {
-	client    *http.Client
-	BaseURL   *url.URL
-	UserAgent string
+	client      *http.Client
+	rateLimiter *rate.Limiter
+	bearerToken *string
+	common      service
+	baseURL     *url.URL
+	userAgent   string
 
-	common service
+	Collection *CollectionService
 }
 
 type service struct {
 	client *Client
 }
 
-func NewClient(httpClient *http.Client) *Client {
+func NewClient(authToken string, httpClient *http.Client) (*Client, error) {
+	var b *string
+	if authToken != "" {
+		t := fmt.Sprintf("Discogs token=%s", authToken)
+		b = &t
+	}
+
 	if httpClient == nil {
 		httpClient = &http.Client{}
 	}
 
 	httpClient2 := *httpClient
 
-	c := &Client{client: &httpClient2}
+	c := &Client{
+		client:      &httpClient2,
+		bearerToken: b,
+	}
 
-	c.initialize()
+	err := c.initialize()
 
-	return c
+	return c, err
 }
 
-func (c *Client) initialize() {
-	if c.client == nil {
-		c.client = &http.Client{}
+func (c *Client) initialize() error {
+	if c.baseURL == nil {
+		u, err := url.Parse(defaultBaseURL)
+		if err != nil {
+			return err
+		}
+		c.baseURL = u
 	}
 
-	if c.BaseURL == nil {
-		c.BaseURL, _ = url.Parse(defaultBaseURL)
+	if c.userAgent == "" {
+		c.userAgent = defaultUserAgent
 	}
 
-	if c.UserAgent == "" {
-		c.UserAgent = defaultUserAgent
+	if c.bearerToken == nil {
+		c.rateLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 25)
+	} else {
+		c.rateLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 60)
 	}
 
 	c.common.client = c
+	c.Collection = (*CollectionService)(&c.common)
+
+	return nil
 }
 
-type RequestOption func(req *http.Request)
+type requestOption func(req *http.Request) error
 
-func (c *Client) NewRequest(method string, urlStr string, body interface{}, opts ...RequestOption) (*http.Request, error) {
-	u, err := c.BaseURL.Parse(urlStr)
+func (c *Client) NewRequest(method string, urlStr string, body interface{}, opts ...requestOption) (*http.Request, error) {
+	u, err := c.baseURL.Parse(urlStr)
 	if err != nil {
 		return nil, err
 	}
@@ -82,44 +106,33 @@ func (c *Client) NewRequest(method string, urlStr string, body interface{}, opts
 		return nil, err
 	}
 
+	if c.bearerToken != nil {
+		req.Header.Set("Authorization", *c.bearerToken)
+	}
+
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	if c.UserAgent != "" {
-		req.Header.Set("User-Agent", c.UserAgent)
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
 	}
 
 	for _, opt := range opts {
-		opt(req)
+		err = opt(req)
+		if err != nil {
+			return nil, fmt.Errorf("error with request option: %w", err)
+		}
 	}
 
 	return req, nil
 }
 
-func (c *Client) Do(ctx context.Context, req *http.Request, v interface{}) (*http.Response, error) {
+func (c *Client) Do(ctx context.Context, req *http.Request) (*Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	switch v := v.(type) {
-	case nil:
-
-	case io.Writer:
-		_, err = io.Copy(v, resp.Body)
-
-	default:
-		decErr := json.NewDecoder(resp.Body).Decode(v)
-		if decErr == io.EOF {
-			decErr = nil // ignore EOF errors caused by empty response body
-		}
-
-		if decErr != nil {
-			err = decErr
-		}
-	}
-
-	return resp, err
+	response := newResponse(resp)
+	return response, nil
 }

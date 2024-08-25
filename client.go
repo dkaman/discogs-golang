@@ -140,78 +140,19 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*Response, error) {
 
 func main() {
 	ctx := context.Background()
+
 	authToken := os.Getenv("pat")
+
 	c, err := NewClient(authToken, nil)
 	if err != nil {
 		fmt.Printf("error creating client: %s", err)
 		return
 	}
 
-	// f, err := c.Collection.GetReleasesByFolder(ctx, "dallaskaman", 0)
-	// if err != nil {
-	// 	fmt.Printf("error getting folders: %s", err)
-	// 	return
-	// }
-
-	// for _, l := range f {
-	// 	fmt.Printf("release %s\n", l.BasicInfo.Title)
-	// }
-
-	// g, err := c.Collection.GetFolderByRelease(ctx, "dallaskaman", 12245977)
-
-	// for _, gg := range g {
-	// 	fmt.Printf("release - by folder: %s\n", gg.BasicInfo.Title)
-	// }
-
-	l, err := c.Collection.CreateFolder(ctx, "dallaskaman", "testfolder")
+	rs, err := c.Collection.ListFolders(ctx, "dallaskaman")
 	if err != nil {
-		fmt.Printf("error creating folder: %s\n", err)
-
-	}
-
-	fmt.Printf("new folder: %v\n", l)
-
-	z, err := c.Collection.GetFolder(ctx, "dallaskaman", l.ID)
-	if err != nil {
-		fmt.Printf("get folder err: %s\n", err)
+		fmt.Printf("error with call: %s\n", err)
 		return
 	}
-
-	fmt.Printf("z: %v\n", z)
-
-	z.Name = "new edited folder name"
-
-	m, err := c.Collection.EditFolder(ctx, "dallaskaman", z.ID, *z)
-
-	fmt.Printf("m: %v\n", m)
-
-	err = c.Collection.DeleteFolder(ctx, "dallaskaman", m.ID)
-	if err != nil {
-		fmt.Printf("delete err: %s\n", err)
-		return
-	}
-
-	// req, err := c.NewRequest("GET", "artists/1/releases?page=1&per_page=1", nil)
-	// if err != nil {
-	// 	fmt.Printf("error creating request: %s", err)
-	// 	return
-	// }
-	// reqDump, err := httputil.DumpRequestOut(req, true)
-	// if err != nil {
-	// 	fmt.Printf("error dumping request: %s\n", err)
-	// 	return
-	// }
-
-	// fmt.Printf("REQUEST:\n%s", string(reqDump))
-
-	// resp, err := c.Do(ctx, req)
-	// if err != nil {
-	// 	fmt.Printf("error sending request: %s", err)
-	// 	return
-	// }
-	// respDump, err := httputil.DumpResponse(resp.Response, true)
-	// if err != nil {
-	// 	fmt.Printf("error dumping response: %s\n", err)
-	// }
-	// fmt.Printf("RESPONSE:\n%s", string(respDump))
+	fmt.Printf("folders: %v\n", rs)
 }

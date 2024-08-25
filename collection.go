@@ -83,7 +83,7 @@ type Value struct {
 }
 
 type Instance struct {
-	ID int `json:"instance_id"`
+	ID          int    `json:"instance_id"`
 	ResourceURL string `json:"resource_url"`
 }
 
@@ -104,13 +104,18 @@ func (s *CollectionService) ListFolders(ctx context.Context, username string) (f
 
 	req, err := s.client.NewRequest("GET", u, nil)
 	if err != nil {
-		return nil, err
+		return
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return
 	}
 
 	var r GetFoldersResponse
-	_, err = s.client.Do(ctx, req)
+	err = json.NewDecoder(resp.Body).Decode(&r)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	folders = r.Folders
@@ -139,6 +144,10 @@ func (s *CollectionService) CreateFolder(ctx context.Context, username string, f
 		return nil, err
 	}
 
+	if resp.StatusCode != 201 {
+		return nil, fmt.Errorf("did not recieve 201 from server, got %d", resp.StatusCode)
+	}
+
 	var f Folder
 	err = json.NewDecoder(resp.Body).Decode(&f)
 	folder = &f
@@ -159,6 +168,10 @@ func (s *CollectionService) GetFolder(ctx context.Context, username string, fold
 		return nil, err
 	}
 
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("did not receive 200 from server, got %d", resp.StatusCode)
+	}
+
 	var f Folder
 	err = json.NewDecoder(resp.Body).Decode(&f)
 	folder = &f
@@ -177,6 +190,10 @@ func (s *CollectionService) EditFolder(ctx context.Context, username string, fol
 	resp, err := s.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
 	}
 
 	var f Folder
@@ -221,6 +238,10 @@ func (s *CollectionService) GetFolderByRelease(ctx context.Context, username str
 		return nil, err
 	}
 
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
+	}
+
 	first, pager, err := NewPager[GetFolderByReleaseResponse](resp, s.client)
 	if err != nil {
 		return nil, err
@@ -254,6 +275,10 @@ func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username st
 	resp, err := s.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
 	}
 
 	first, pager, err := NewPager[GetReleaseByFolderResponse](resp, s.client)
@@ -310,7 +335,7 @@ func (s *CollectionService) AddReleaseToFolder(ctx context.Context, username str
 func (s *CollectionService) ChangeRatingOfRelease(ctx context.Context, username string, folderID int, releaseID int, instanceID int, rating int) (err error) {
 	u := fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d", username, folderID, releaseID, instanceID)
 
-	body := struct{
+	body := struct {
 		Rating int `json:"rating"`
 	}{
 		Rating: rating,
@@ -376,6 +401,10 @@ func (s *CollectionService) ListCustomFields(ctx context.Context, username strin
 		return nil, err
 	}
 
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
+	}
+
 	var r ListCustomFieldsResponse
 	err = json.NewDecoder(resp.Body).Decode(&r)
 	if err != nil {
@@ -417,6 +446,10 @@ func (s *CollectionService) GetCollectionValue(ctx context.Context, username str
 	resp, err := s.client.Do(ctx, req)
 	if err != nil {
 		return
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
 	}
 
 	var r Value

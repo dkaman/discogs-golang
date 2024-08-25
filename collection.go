@@ -82,6 +82,11 @@ type Value struct {
 	Minimum string `json:"minimum"`
 }
 
+type Instance struct {
+	ID int `json:"instance_id"`
+	ResourceURL string `json:"resource_url"`
+}
+
 type releaseResponse struct {
 	Releases []Release `json:"releases"`
 }
@@ -271,18 +276,86 @@ func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username st
 	return
 }
 
-func (s *CollectionService) AddReleaseToFolder(ctx context.Context, username string, folderID int, releaseID int) (err error) {
-	_ = fmt.Sprintf("users/%s/collection/folders/%d/releases/%d", username, folderID, releaseID)
+type AddReleaseToFolderResponse Instance
+
+func (s *CollectionService) AddReleaseToFolder(ctx context.Context, username string, folderID int, releaseID int) (instance Instance, err error) {
+	u := fmt.Sprintf("users/%s/collection/folders/%d/releases/%d", username, folderID, releaseID)
+
+	req, err := s.client.NewRequest("POST", u, nil)
+	if err != nil {
+		return
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return
+	}
+
+	if resp.StatusCode != 201 {
+		err = fmt.Errorf("did not receive status 201 from server, got %d", resp.StatusCode)
+		return
+	}
+
+	var r AddReleaseToFolderResponse
+	err = json.NewDecoder(resp.Body).Decode(&r)
+	if err != nil {
+		return
+	}
+
+	instance = Instance(r)
+
 	return
 }
 
 func (s *CollectionService) ChangeRatingOfRelease(ctx context.Context, username string, folderID int, releaseID int, instanceID int, rating int) (err error) {
-	_ = fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d", username, folderID, releaseID, instanceID)
+	u := fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d", username, folderID, releaseID, instanceID)
+
+	body := struct{
+		Rating int `json:"rating"`
+	}{
+		Rating: rating,
+	}
+
+	req, err := s.client.NewRequest("POST", u, body)
+	if err != nil {
+		return
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return
+	}
+
+	if resp.StatusCode != 204 {
+		err = fmt.Errorf("did not receive status 201 from server, got %d", resp.StatusCode)
+		return
+	}
+
 	return
 }
 
 func (s *CollectionService) RemoveReleaseFromFolder(ctx context.Context, username string, folderID int, releaseID int, instanceID int) (err error) {
-	_ = fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d", username, folderID, releaseID, instanceID)
+	u := fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d", username, folderID, releaseID, instanceID)
+
+	req, err := s.client.NewRequest("POST", u, nil)
+	if err != nil {
+		return
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return
+	}
+
+	switch resp.StatusCode {
+	case 204:
+		err = nil
+	case 403:
+		err = fmt.Errorf("unauthorized to edit folder %d", folderID)
+	default:
+		err = fmt.Errorf("did not receive 204 from server, got %d", resp.StatusCode)
+	}
+
 	return
 }
 
@@ -314,11 +387,45 @@ func (s *CollectionService) ListCustomFields(ctx context.Context, username strin
 }
 
 func (s *CollectionService) EditCustomFields(ctx context.Context, username string, folderID int, releaseID int, instanceID int, fieldID int, value string) (err error) {
-	_ = fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d/fields/%d", username, folderID, releaseID, instanceID, fieldID)
+	u := fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d/fields/%d", username, folderID, releaseID, instanceID, fieldID)
+
+	req, err := s.client.NewRequest("POST", u, nil)
+	if err != nil {
+		return
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return
+	}
+
+	if resp.StatusCode != 204 {
+		err = fmt.Errorf("did not receive 204 from server, got %d", resp.StatusCode)
+	}
+
 	return
 }
 
 func (s *CollectionService) GetCollectionValue(ctx context.Context, username string) (value *Value, err error) {
-	_ = fmt.Sprintf("users/%s/collection/value", username)
+	u := fmt.Sprintf("users/%s/collection/value", username)
+
+	req, err := s.client.NewRequest("GET", u, nil)
+	if err != nil {
+		return
+	}
+
+	resp, err := s.client.Do(ctx, req)
+	if err != nil {
+		return
+	}
+
+	var r Value
+	err = json.NewDecoder(resp.Body).Decode(&r)
+	if err != nil {
+		return nil, err
+	}
+
+	value = &r
+
 	return
 }

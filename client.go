@@ -1,4 +1,4 @@
-package main
+package discogs
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -136,23 +135,4 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*Response, error) {
 	}
 	response := newResponse(resp)
 	return response, nil
-}
-
-func main() {
-	ctx := context.Background()
-
-	authToken := os.Getenv("pat")
-
-	c, err := NewClient(authToken, nil)
-	if err != nil {
-		fmt.Printf("error creating client: %s", err)
-		return
-	}
-
-	rs, err := c.Collection.ListFolders(ctx, "dallaskaman")
-	if err != nil {
-		fmt.Printf("error with call: %s\n", err)
-		return
-	}
-	fmt.Printf("folders: %v\n", rs)
 }

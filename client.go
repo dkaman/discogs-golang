@@ -23,9 +23,10 @@ type Client struct {
 	client      *http.Client
 	rateLimiter *rate.Limiter
 	bearerToken *string
-	common      service
 	baseURL     *url.URL
 	userAgent   string
+
+	common service
 
 	Collection *CollectionService
 }
@@ -34,52 +35,48 @@ type service struct {
 	client *Client
 }
 
-func NewClient(authToken string, httpClient *http.Client) (*Client, error) {
-	var b *string
-	if authToken != "" {
-		t := fmt.Sprintf("Discogs token=%s", authToken)
-		b = &t
-	}
+type clientOption func(*Client) error
 
-	if httpClient == nil {
-		httpClient = &http.Client{}
+func NewClient(opts ...clientOption) (*Client, error) {
+	u, err := url.Parse(defaultBaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("default base url failed to parse, this shouldn't happen ever lol. %w", err)
 	}
-
-	httpClient2 := *httpClient
 
 	c := &Client{
-		client:      &httpClient2,
-		bearerToken: b,
+		baseURL:     u,
+		client:      &http.Client{},
+		userAgent:   defaultUserAgent,
+		rateLimiter: rate.NewLimiter(rate.Every(1*time.Minute), 25),
 	}
 
-	err := c.initialize()
-
-	return c, err
-}
-
-func (c *Client) initialize() error {
-	if c.baseURL == nil {
-		u, err := url.Parse(defaultBaseURL)
+	for idx, o := range opts {
+		err := o(c)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("error in client option %d: %w", idx, err)
 		}
-		c.baseURL = u
-	}
-
-	if c.userAgent == "" {
-		c.userAgent = defaultUserAgent
-	}
-
-	if c.bearerToken == nil {
-		c.rateLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 25)
-	} else {
-		c.rateLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 60)
 	}
 
 	c.common.client = c
 	c.Collection = (*CollectionService)(&c.common)
 
-	return nil
+	return c, nil
+}
+
+func WithToken(token string) clientOption {
+	auth := fmt.Sprintf("Discogs token=%s", token)
+	return func(c *Client) error {
+		c.bearerToken = &auth
+		c.rateLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 60)
+		return nil
+	}
+}
+
+func WithClient(client *http.Client) clientOption {
+	return func(c *Client) error {
+		c.client = client
+		return nil
+	}
 }
 
 type requestOption func(req *http.Request) error

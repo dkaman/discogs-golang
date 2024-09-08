@@ -38,7 +38,7 @@ type service struct {
 
 type clientOption func(*Client) error
 
-func NewClient(opts ...clientOption) (*Client, error) {
+func New(opts ...clientOption) (*Client, error) {
 	u, err := url.Parse(defaultBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("default base url failed to parse, this shouldn't happen ever lol. %w", err)
@@ -82,7 +82,7 @@ func WithToken(token string) clientOption {
 	}
 }
 
-func WithClient(client *http.Client) clientOption {
+func WithHTTPClient(client *http.Client) clientOption {
 	return func(c *Client) error {
 		c.client = client
 		return nil

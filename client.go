@@ -29,6 +29,7 @@ type Client struct {
 	common service
 
 	Collection *CollectionService
+	Identity   *IdentityService
 }
 
 type service struct {
@@ -50,6 +51,10 @@ func NewClient(opts ...clientOption) (*Client, error) {
 		rateLimiter: rate.NewLimiter(rate.Every(1*time.Minute), 25),
 	}
 
+	c.common.client = c
+	c.Collection = (*CollectionService)(&c.common)
+	c.Identity = (*IdentityService)(&c.common)
+
 	for idx, o := range opts {
 		err := o(c)
 		if err != nil {
@@ -57,17 +62,22 @@ func NewClient(opts ...clientOption) (*Client, error) {
 		}
 	}
 
-	c.common.client = c
-	c.Collection = (*CollectionService)(&c.common)
-
 	return c, nil
 }
 
 func WithToken(token string) clientOption {
 	auth := fmt.Sprintf("Discogs token=%s", token)
+
 	return func(c *Client) error {
 		c.bearerToken = &auth
+
+		_, err := c.Identity.Get()
+		if err != nil {
+			return fmt.Errorf("error getting identity: %w", err)
+		}
+
 		c.rateLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 60)
+
 		return nil
 	}
 }

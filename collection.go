@@ -12,9 +12,9 @@ type CollectionService service
 
 type Folder struct {
 	ID          int    `json:"id"`
+	ResourceURL string `json:"resource_url"`
 	Count       int    `json:"count"`
 	Name        string `json:"name"`
-	ResourceURL string `json:"resource_url"`
 }
 
 type Artist struct {

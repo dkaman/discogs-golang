@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/dkaman/discogs-golang/internal/options"
+
 	"golang.org/x/time/rate"
 )
 
@@ -36,9 +38,7 @@ type service struct {
 	client *Client
 }
 
-type clientOption func(*Client) error
-
-func New(opts ...clientOption) (*Client, error) {
+func New(opts ...options.Option[Client]) (*Client, error) {
 	u, err := url.Parse(defaultBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("default base url failed to parse, this shouldn't happen ever lol. %w", err)
@@ -55,20 +55,18 @@ func New(opts ...clientOption) (*Client, error) {
 	c.Collection = (*CollectionService)(&c.common)
 	c.Identity = (*IdentityService)(&c.common)
 
-	for idx, o := range opts {
-		err := o(c)
-		if err != nil {
-			return nil, fmt.Errorf("error in client option %d: %w", idx, err)
-		}
+	err = options.Apply(c, opts)
+	if err != nil {
+		return nil, err
 	}
+
 
 	return c, nil
 }
 
-func WithToken(token string) clientOption {
-	auth := fmt.Sprintf("Discogs token=%s", token)
-
+func WithToken(token string) options.Option[Client] {
 	return func(c *Client) error {
+		auth := fmt.Sprintf("Discogs token=%s", token)
 		c.bearerToken = &auth
 
 		_, err := c.Identity.Get()
@@ -82,7 +80,7 @@ func WithToken(token string) clientOption {
 	}
 }
 
-func WithHTTPClient(client *http.Client) clientOption {
+func WithHTTPClient(client *http.Client) options.Option[Client] {
 	return func(c *Client) error {
 		c.client = client
 		return nil

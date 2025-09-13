@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 )
 
@@ -17,53 +18,27 @@ type Folder struct {
 	Name        string `json:"name"`
 }
 
-type Artist struct {
-	ID          int    `json:"id"`
-	ResourceURL string `json:"resource_url"`
-	Name        string `json:"name"`
-	Anv         string `json:"anv"`
-	Join        string `json:"join"`
-	Role        string `json:"role"`
-	Tracks      string `json:"tracks"`
-}
-
-type Label struct {
-	ID             int    `json:"id"`
-	ResourceURL    string `json:"resource_url"`
-	Name           string `json:"name"`
-	CatNo          string `json:"catno"`
-	EntityType     int    `json:"entity_type,string"`
-	EntityTypeName string `json:"entity_type_name"`
-}
-
-type releaseFormat struct {
-	Name         string   `json:"name"`
-	Quantity     int      `json:"qty,string"`
-	Descriptions []string `json:"descriptions"`
-}
-type releaseBasicInfo struct {
-	ID          int             `json:"id"`
-	ResourceURL string          `json:"resource_url"`
-	MasterID    int             `json:"master_id"`
-	MasterURL   string          `json:"master_url"`
-	Thumb       string          `json:"thumb"`
-	CoverImage  string          `json:"cover_image"`
-	Title       string          `json:"title"`
-	Year        int             `json:"year"`
-	Formats     []releaseFormat `json:"formats"`
-	Artists     []Artist        `json:"artists"`
-	Labels      []Label         `json:"labels"`
-	Genres      []string        `json:"genres"`
-	Styles      []string        `json:"styles"`
-}
-
-type Release struct {
-	ID         int              `json:"id"`
-	InstanceID int              `json:"instance_id"`
-	DateAdded  string           `json:"date_added"`
-	FolderID   int              `json:"folder_id"`
-	Rating     int              `json:"rating"`
-	BasicInfo  releaseBasicInfo `json:"basic_information"`
+type ReleaseInstance struct {
+	ID         int    `json:"id"`
+	InstanceID int    `json:"instance_id"`
+	DateAdded  string `json:"date_added"`
+	FolderID   int    `json:"folder_id"`
+	Rating     int    `json:"rating"`
+	BasicInfo  struct {
+		ID          int      `json:"id"`
+		ResourceURL string   `json:"resource_url"`
+		MasterID    int      `json:"master_id"`
+		MasterURL   string   `json:"master_url"`
+		Thumb       string   `json:"thumb"`
+		CoverImage  string   `json:"cover_image"`
+		Title       string   `json:"title"`
+		Year        int      `json:"year"`
+		Genres      []string `json:"genres"`
+		Styles      []string `json:"styles"`
+		Artists     []Artist `json:"artists"`
+		Labels      []Label  `json:"labels"`
+		Formats     []Format `json:"formats"`
+	} `json:"basic_information"`
 }
 
 type Field struct {
@@ -88,7 +63,7 @@ type Instance struct {
 }
 
 type releaseResponse struct {
-	Releases []Release `json:"releases"`
+	Releases []ReleaseInstance `json:"releases"`
 }
 
 func (f *Folder) URL() (*url.URL, error) {
@@ -102,7 +77,7 @@ type GetFoldersResponse struct {
 func (s *CollectionService) ListFolders(ctx context.Context, username string) (folders []Folder, err error) {
 	u := fmt.Sprintf("users/%s/collection/folders", username)
 
-	req, err := s.client.NewRequest("GET", u, nil)
+	req, err := s.client.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return
 	}
@@ -134,7 +109,7 @@ func (s *CollectionService) CreateFolder(ctx context.Context, username string, f
 		Name:     folderName,
 	}
 
-	req, err := s.client.NewRequest("POST", u, body)
+	req, err := s.client.NewRequest(http.MethodPost, u, body)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +119,7 @@ func (s *CollectionService) CreateFolder(ctx context.Context, username string, f
 		return nil, err
 	}
 
-	if resp.StatusCode != 201 {
+	if resp.StatusCode != http.StatusCreated {
 		return nil, fmt.Errorf("did not recieve 201 from server, got %d", resp.StatusCode)
 	}
 
@@ -158,7 +133,7 @@ func (s *CollectionService) CreateFolder(ctx context.Context, username string, f
 func (s *CollectionService) GetFolder(ctx context.Context, username string, folderID int) (folder *Folder, err error) {
 	u := fmt.Sprintf("users/%s/collection/folders/%d", username, folderID)
 
-	req, err := s.client.NewRequest("GET", u, nil)
+	req, err := s.client.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +143,7 @@ func (s *CollectionService) GetFolder(ctx context.Context, username string, fold
 		return nil, err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("did not receive 200 from server, got %d", resp.StatusCode)
 	}
 
@@ -182,7 +157,7 @@ func (s *CollectionService) GetFolder(ctx context.Context, username string, fold
 func (s *CollectionService) EditFolder(ctx context.Context, username string, folderID int, newFolder Folder) (folder *Folder, err error) {
 	u := fmt.Sprintf("users/%s/collection/folders/%d", username, folderID)
 
-	req, err := s.client.NewRequest("POST", u, newFolder)
+	req, err := s.client.NewRequest(http.MethodPost, u, newFolder)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +167,7 @@ func (s *CollectionService) EditFolder(ctx context.Context, username string, fol
 		return nil, err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
 	}
 
@@ -206,7 +181,7 @@ func (s *CollectionService) EditFolder(ctx context.Context, username string, fol
 func (s *CollectionService) DeleteFolder(ctx context.Context, username string, folderID int) (err error) {
 	u := fmt.Sprintf("users/%s/collection/folders/%d", username, folderID)
 
-	req, err := s.client.NewRequest("DELETE", u, nil)
+	req, err := s.client.NewRequest(http.MethodDelete, u, nil)
 	if err != nil {
 		return
 	}
@@ -216,7 +191,7 @@ func (s *CollectionService) DeleteFolder(ctx context.Context, username string, f
 		return
 	}
 
-	if resp.StatusCode != 204 {
+	if resp.StatusCode != http.StatusNoContent { // 204
 		err = fmt.Errorf("obtained non-204 on delete: got %d", resp.StatusCode)
 	}
 
@@ -225,10 +200,10 @@ func (s *CollectionService) DeleteFolder(ctx context.Context, username string, f
 
 type GetFolderByReleaseResponse releaseResponse
 
-func (s *CollectionService) GetFolderByRelease(ctx context.Context, username string, releaseID int) (releases []Release, err error) {
+func (s *CollectionService) GetFolderByRelease(ctx context.Context, username string, releaseID int) (releases []ReleaseInstance, err error) {
 	u := fmt.Sprintf("users/%s/collection/releases/%d", username, releaseID)
 
-	req, err := s.client.NewRequest("GET", u, nil)
+	req, err := s.client.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +213,7 @@ func (s *CollectionService) GetFolderByRelease(ctx context.Context, username str
 		return nil, err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
 	}
 
@@ -264,10 +239,10 @@ func (s *CollectionService) GetFolderByRelease(ctx context.Context, username str
 
 type GetReleaseByFolderResponse releaseResponse
 
-func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username string, folderID int) (releases []Release, err error) {
+func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username string, folderID int) (releases []ReleaseInstance, err error) {
 	u := fmt.Sprintf("users/%s/collection/folders/%d/releases", username, folderID)
 
-	req, err := s.client.NewRequest("GET", u, nil)
+	req, err := s.client.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +252,7 @@ func (s *CollectionService) GetReleasesByFolder(ctx context.Context, username st
 		return nil, err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
 	}
 
@@ -306,7 +281,7 @@ type AddReleaseToFolderResponse Instance
 func (s *CollectionService) AddReleaseToFolder(ctx context.Context, username string, folderID int, releaseID int) (instance Instance, err error) {
 	u := fmt.Sprintf("users/%s/collection/folders/%d/releases/%d", username, folderID, releaseID)
 
-	req, err := s.client.NewRequest("POST", u, nil)
+	req, err := s.client.NewRequest(http.MethodPost, u, nil)
 	if err != nil {
 		return
 	}
@@ -316,7 +291,7 @@ func (s *CollectionService) AddReleaseToFolder(ctx context.Context, username str
 		return
 	}
 
-	if resp.StatusCode != 201 {
+	if resp.StatusCode != http.StatusCreated { // 201
 		err = fmt.Errorf("did not receive status 201 from server, got %d", resp.StatusCode)
 		return
 	}
@@ -341,7 +316,7 @@ func (s *CollectionService) ChangeRatingOfRelease(ctx context.Context, username 
 		Rating: rating,
 	}
 
-	req, err := s.client.NewRequest("POST", u, body)
+	req, err := s.client.NewRequest(http.MethodPost, u, body)
 	if err != nil {
 		return
 	}
@@ -351,8 +326,8 @@ func (s *CollectionService) ChangeRatingOfRelease(ctx context.Context, username 
 		return
 	}
 
-	if resp.StatusCode != 204 {
-		err = fmt.Errorf("did not receive status 201 from server, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusNoContent { // 204
+		err = fmt.Errorf("did not receive status 204 from server, got %d", resp.StatusCode)
 		return
 	}
 
@@ -362,7 +337,7 @@ func (s *CollectionService) ChangeRatingOfRelease(ctx context.Context, username 
 func (s *CollectionService) RemoveReleaseFromFolder(ctx context.Context, username string, folderID int, releaseID int, instanceID int) (err error) {
 	u := fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d", username, folderID, releaseID, instanceID)
 
-	req, err := s.client.NewRequest("POST", u, nil)
+	req, err := s.client.NewRequest(http.MethodPost, u, nil)
 	if err != nil {
 		return
 	}
@@ -373,9 +348,9 @@ func (s *CollectionService) RemoveReleaseFromFolder(ctx context.Context, usernam
 	}
 
 	switch resp.StatusCode {
-	case 204:
+	case http.StatusNoContent: // 204
 		err = nil
-	case 403:
+	case http.StatusForbidden: // 403
 		err = fmt.Errorf("unauthorized to edit folder %d", folderID)
 	default:
 		err = fmt.Errorf("did not receive 204 from server, got %d", resp.StatusCode)
@@ -391,7 +366,7 @@ type ListCustomFieldsResponse struct {
 func (s *CollectionService) ListCustomFields(ctx context.Context, username string) (fields []Field, err error) {
 	u := fmt.Sprintf("users/%s/collection/fields", username)
 
-	req, err := s.client.NewRequest("GET", u, nil)
+	req, err := s.client.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +376,7 @@ func (s *CollectionService) ListCustomFields(ctx context.Context, username strin
 		return nil, err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
 	}
 
@@ -418,7 +393,7 @@ func (s *CollectionService) ListCustomFields(ctx context.Context, username strin
 func (s *CollectionService) EditCustomFields(ctx context.Context, username string, folderID int, releaseID int, instanceID int, fieldID int, value string) (err error) {
 	u := fmt.Sprintf("users/%s/collection/folders/%d/releases/%d/instances/%d/fields/%d", username, folderID, releaseID, instanceID, fieldID)
 
-	req, err := s.client.NewRequest("POST", u, nil)
+	req, err := s.client.NewRequest(http.MethodPost, u, nil)
 	if err != nil {
 		return
 	}
@@ -428,7 +403,7 @@ func (s *CollectionService) EditCustomFields(ctx context.Context, username strin
 		return
 	}
 
-	if resp.StatusCode != 204 {
+	if resp.StatusCode != http.StatusNoContent { // 204
 		err = fmt.Errorf("did not receive 204 from server, got %d", resp.StatusCode)
 	}
 
@@ -438,7 +413,7 @@ func (s *CollectionService) EditCustomFields(ctx context.Context, username strin
 func (s *CollectionService) GetCollectionValue(ctx context.Context, username string) (value *Value, err error) {
 	u := fmt.Sprintf("users/%s/collection/value", username)
 
-	req, err := s.client.NewRequest("GET", u, nil)
+	req, err := s.client.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return
 	}
@@ -448,7 +423,7 @@ func (s *CollectionService) GetCollectionValue(ctx context.Context, username str
 		return
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("received non 200 from server, got %d", resp.StatusCode)
 	}
 

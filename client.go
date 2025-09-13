@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/dkaman/discogs-golang/internal/options"
 
@@ -32,6 +31,7 @@ type Client struct {
 
 	Collection *CollectionService
 	Identity   *IdentityService
+	Database   *DatabaseService
 }
 
 type service struct {
@@ -48,24 +48,27 @@ func New(opts ...options.Option[Client]) (*Client, error) {
 		baseURL:     u,
 		client:      &http.Client{},
 		userAgent:   defaultUserAgent,
-		rateLimiter: rate.NewLimiter(rate.Every(1*time.Minute), 25),
+		rateLimiter: rate.NewLimiter(rate.Limit(25.0/60.0), 1),
 	}
 
 	c.common.client = c
 	c.Collection = (*CollectionService)(&c.common)
 	c.Identity = (*IdentityService)(&c.common)
+	c.Database = (*DatabaseService)(&c.common)
 
-	err = options.Apply(c, opts)
+	err = options.Apply(c, opts...)
 	if err != nil {
 		return nil, err
 	}
-
 
 	return c, nil
 }
 
 func WithToken(token string) options.Option[Client] {
 	return func(c *Client) error {
+		// just writing it this way to show 60 request per minute
+		c.rateLimiter = rate.NewLimiter(rate.Limit(55.0/60.0), 1)
+
 		auth := fmt.Sprintf("Discogs token=%s", token)
 		c.bearerToken = &auth
 
@@ -73,8 +76,6 @@ func WithToken(token string) options.Option[Client] {
 		if err != nil {
 			return fmt.Errorf("error getting identity: %w", err)
 		}
-
-		c.rateLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 60)
 
 		return nil
 	}
@@ -87,9 +88,7 @@ func WithHTTPClient(client *http.Client) options.Option[Client] {
 	}
 }
 
-type requestOption func(req *http.Request) error
-
-func (c *Client) NewRequest(method string, urlStr string, body interface{}, opts ...requestOption) (*http.Request, error) {
+func (c *Client) NewRequest(method string, urlStr string, body any, opts ...options.Option[http.Request]) (*http.Request, error) {
 	u, err := c.baseURL.Parse(urlStr)
 	if err != nil {
 		return nil, err
@@ -123,21 +122,26 @@ func (c *Client) NewRequest(method string, urlStr string, body interface{}, opts
 		req.Header.Set("User-Agent", c.userAgent)
 	}
 
-	for _, opt := range opts {
-		err = opt(req)
-		if err != nil {
-			return nil, fmt.Errorf("error with request option: %w", err)
-		}
+	err = options.Apply(req, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
 }
 
 func (c *Client) Do(ctx context.Context, req *http.Request) (*Response, error) {
+	err := c.rateLimiter.Wait(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error waiting for rate limiter in http request: %w", err)
+	}
+
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+
 	response := newResponse(resp)
+
 	return response, nil
 }

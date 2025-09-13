@@ -14,23 +14,21 @@ var (
 	ErrNilClient = errors.New("provided a nil client to init pager")
 )
 
-// stealing from https://vladimir.varank.in/notes/2022/05/a-real-life-use-case-for-generics-in-go-api-for-client-side-pagination/
-type Pager[T any] struct {
-	pageInfo pageInfo
-	client   *Client
-}
-
-func (p *Pager[T]) initialize(r *Response) {
-	p.pageInfo = r.Paginator
-}
-
 func readBody[T any](resp *Response, v *T) error {
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
+
 	resp.Body = io.NopCloser(bytes.NewBuffer(data))
+
 	return json.Unmarshal(data, v)
+}
+
+// stealing from https://vladimir.varank.in/notes/2022/05/a-real-life-use-case-for-generics-in-go-api-for-client-side-pagination/
+type Pager[T any] struct {
+	pageInfo pageInfo
+	client   *Client
 }
 
 func NewPager[T any](r *Response, client *Client) (*T, *Pager[T], error) {
@@ -40,9 +38,9 @@ func NewPager[T any](r *Response, client *Client) (*T, *Pager[T], error) {
 
 	pager := &Pager[T]{
 		client: client,
+		pageInfo: r.Paginator,
 	}
 
-	pager.initialize(r)
 
 	var respBody T
 	err := readBody(r, &respBody)
@@ -82,6 +80,7 @@ func (p *Pager[T]) Next(ctx context.Context) (*T, error) {
 	}
 
 	p.pageInfo = resp.Paginator
+
 	return apiResponse, nil
 }
 
